@@ -1,6 +1,7 @@
 """Download Model"""
 from torch import nn, device, cuda
 from Bio import Entrez
+from tqdm import tqdm
 
 
 def download_model():
@@ -71,6 +72,7 @@ def classifyAbstract(abstracts):
     )
     pt_outputs = model(**pt_batch)
     pt_predictions = nn.functional.softmax(pt_outputs.logits, dim=-1)
+    cuda.empty_cache()
     return pt_predictions
 
 
@@ -87,7 +89,9 @@ def save_to_file(save_to, data):
 """Method to classify pmids (PubMed IDs)"""
 
 
-def classify(pmids=[], load_file=None, save_to=None):
+def classify(pmids=[], load_file=None, save_to=None, batch_size=5):
+    if model == None:
+        load_model()
     if load_file != None:
         try:
             import csv
@@ -99,16 +103,18 @@ def classify(pmids=[], load_file=None, save_to=None):
         except:
             print("The file does not exist or in incorrect format")
             return
-    pmid_abstracts = getAbstracts(pmids)
-    predictions = [0 if p[0] > p[1] else 1 for p in classifyAbstract(
-        pmid_abstracts["abstracts"])]
-    results = list(zip(pmid_abstracts["pmids"], predictions))
+    results = []
+    for i in tqdm(range(0, len(pmids), batch_size)):
+        pmid_abstracts = getAbstracts(pmids[i:i+batch_size])
+        predictions = [0 if p[0] > p[1] else 1 for p in classifyAbstract(
+            pmid_abstracts["abstracts"])]
+        results += list(zip(pmid_abstracts["pmids"], predictions))
     if save_to != None:
         save_to_file(save_to, results)
     return results
 
 
-def test_classify(test_data=[], load_file=None, save_to=None):
+def test_classify(test_data=[], load_file=None, save_to=None, batch_size=5):
     if load_file != None:
         import csv
         test_data = []
@@ -117,7 +123,7 @@ def test_classify(test_data=[], load_file=None, save_to=None):
             for row in my_reader:
                 test_data += [row]
     dict_test = {str(k): str(v) for k, v in dict(test_data).items()}
-    result = classify(list(dict_test.keys()))
+    result = classify(pmids=list(dict_test.keys()), batch_size=batch_size)
     ret = []
     for rs in result:
         ret += [(rs[0], dict_test[rs[0]], rs[1])]

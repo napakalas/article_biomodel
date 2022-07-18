@@ -16,6 +16,7 @@ setuptools.setup(
         'gdown',
         'transformers',
         'biopython',
+        'tqdm',
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
